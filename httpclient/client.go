@@ -3,7 +3,6 @@ package httpclient
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -14,7 +13,15 @@ type HttpClient struct {
 	AuthToken string
 }
 
-func (c *HttpClient) GetGameStatus() ([]byte, int) {
+type GameStatus struct {
+	Nick           string   `json:"nick"`
+	GameStatus     string   `json:"game_status"`
+	LastGameStatus string   `json:"last_game_status"`
+	Opponent       string   `json:"opponenet"`
+	OpponentShots  []string `json:"opp_shots"`
+}
+
+func (c *HttpClient) GetGameStatus() (GameStatus, int) {
 
 	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game", nil)
 	if err != nil {
@@ -32,7 +39,12 @@ func (c *HttpClient) GetGameStatus() ([]byte, int) {
 	if err != nil {
 		log.Println("Error reading body while checking game status: ", err)
 	}
-	return body, resp.StatusCode
+	var status GameStatus
+	err = json.Unmarshal(body, &status)
+	if err != nil {
+		log.Println("Error unmarshaling game status: ", err)
+	}
+	return status, resp.StatusCode
 }
 
 type GameConfig struct {
@@ -63,7 +75,7 @@ func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, int) {
 
 }
 
-func (c *HttpClient) GetGameBoard() ([]byte, int) {
+func (c *HttpClient) GetGameBoard() ([]string, int) {
 	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/board", nil)
 	if err != nil {
 		log.Println("Error creating request while getting game board", err)
@@ -75,23 +87,27 @@ func (c *HttpClient) GetGameBoard() ([]byte, int) {
 		log.Println("Error requesting game board ", err)
 	}
 
+	type board struct {
+		Brd []string `json:"board"`
+	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("Error reading response body while getting game board ", err)
 	}
+	var brd board
+	err = json.Unmarshal(body, &brd)
+	if err != nil {
+		log.Println("Error unmarshaling response body while getting game board ", err)
+	}
 
-	return body, resp.StatusCode
+	return brd.Brd, resp.StatusCode
 }
 
-func (c *HttpClient) Fire(x byte, y byte) ([]byte, int) {
+func (c *HttpClient) Fire(toFire string) (string, int) {
 	type coord struct {
 		Coord string `json:"coord"`
 	}
-
-	var toFire string
-	toFire = string(x)
-	toFire += string(y)
 
 	crd := &coord{
 		Coord: toFire,
@@ -102,7 +118,6 @@ func (c *HttpClient) Fire(x byte, y byte) ([]byte, int) {
 		log.Println("Error marshaling fire coords")
 	}
 
-	fmt.Println("COOOOORD: ", string(crdm))
 	req, err := http.NewRequest("POST", "https://go-pjatk-server.fly.dev/api/game/fire", bytes.NewReader(crdm))
 	if err != nil {
 		log.Println("Error creating request while firing", err)
@@ -119,7 +134,15 @@ func (c *HttpClient) Fire(x byte, y byte) ([]byte, int) {
 	if err != nil {
 		log.Println("Error reading response body while firing", err)
 	}
+	type result struct {
+		Result string `json:"result"`
+	}
+	var res result
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		log.Println("Error unmarshaling response while firing", err)
+	}
 
-	return body, resp.StatusCode
+	return res.Result, resp.StatusCode
 
 }
