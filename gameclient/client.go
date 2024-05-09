@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
 	"warships/httpclient"
@@ -23,11 +22,6 @@ var cfg *httpclient.GameConfig
 var board *gui.Board
 var httpc *httpclient.HttpClient
 
-func createHttpc() {
-	httpc = &httpclient.HttpClient{
-		Client: &http.Client{Timeout: time.Second * 20},
-	}
-}
 func createCfg() {
 	nick := utils.PromptString("nick", DEFAULT_NICK)
 	desc := utils.PromptString("description", DEFAULT_DESC)
@@ -54,17 +48,23 @@ func createCfg() {
 }
 
 func auth() {
-	auth, ok := httpc.GetAuthToken(cfg)
-	if ok != 200 {
-		log.Println("Invalid response auth token: ", ok)
-		if ok == 400 {
-			log.Println("Bad request")
-		}
+	auth, err := httpc.GetAuthToken(cfg)
+	tryCounter := 1
+
+	if err != nil && tryCounter < 3 {
+		log.Println("Invalid response auth token: ", err)
+		log.Println("Retrying...")
+		auth, err = httpc.GetAuthToken(cfg)
+		tryCounter++
+	}
+	if err != nil {
+		log.Println("Failed to authenticate... exiting")
+		return
 	}
 	httpc.AuthToken = auth
 }
 
-func fire() (string, string) {
+func fire() (string, string, error) {
 	valid := false
 	var toFire string
 
@@ -76,22 +76,26 @@ func fire() (string, string) {
 	}
 
 	toFire = toFire[:len(toFire)-1]
-	isHit, ok := httpc.Fire(toFire)
-	if ok != 200 {
-		log.Println("Problem firing", ok)
+	isHit, err := httpc.Fire(toFire)
+	if err != nil {
+		log.Println("Error firing")
+		return "", toFire, err
 	}
-	return isHit, toFire
-}
-func getShips() []string {
-	ships, ok := httpc.GetGameBoard()
-	if ok != 200 {
-		log.Println("Error getting game board: ", ok)
-	}
-	return ships
+	return isHit, toFire, err
 }
 
 func fireUpdate() {
-	isHit, toFire := fire()
+
+	isHit, toFire, err := fire()
+	tryCounter := 1
+	for err != nil && tryCounter < 3 {
+		isHit, toFire, err = fire()
+		tryCounter++
+	}
+	if err != nil {
+		log.Println("Failed to fire after 3 tries: ", err)
+		return
+	}
 	switch isHit {
 	case "hit":
 		board.Set(gui.Right, toFire, gui.Hit)
@@ -100,18 +104,6 @@ func fireUpdate() {
 	case "sunk":
 		board.Set(gui.Right, toFire, gui.Ship)
 	}
-}
-
-func checkGameStatus() httpclient.GameStatus {
-	status := httpc.GetGameStatus()
-
-	return status
-}
-
-func setup() {
-	createCfg()
-	createHttpc()
-	board = gui.New(gui.NewConfig())
 }
 
 func printInfo(desc httpclient.Desc, status httpclient.GameStatus) {
@@ -135,30 +127,79 @@ func oppShotHandler(status httpclient.GameStatus, ships []string) {
 	}
 }
 
-func StartGame() {
-	setup()
+func gameDesc() (httpclient.Desc, error) {
+	desc, err := httpc.GetDesc()
+	tryCounter := 1
+	for err != nil && tryCounter < 3 {
+		time.Sleep(time.Second)
+		desc, err = httpc.GetDesc()
+	}
+	return desc, err
+}
+
+func gameShips() ([]string, error) {
+	ships, err := httpc.GetGameBoard()
+	tryCounter := 1
+	if err != nil && tryCounter < 3 {
+		log.Println("Error getting game board: ", err, " retrying...")
+		ships, err = httpc.GetGameBoard()
+		tryCounter++
+	}
+	return ships, err
+}
+
+func gameStatus() (httpclient.GameStatus, error) {
+	status, err := httpc.GetGameStatus()
+	tryCounter := 1
+	if err != nil && tryCounter < 3 {
+		log.Println("Error getting game status...", err, " retrying")
+		status, err = httpc.GetGameStatus()
+		tryCounter++
+	}
+	return status, err
+}
+
+func StartGame(httpcl *httpclient.HttpClient) {
+	httpc = httpcl
+	createCfg()
+	board = gui.New(gui.NewConfig())
 	auth()
 	fmt.Println("Game started")
-	time.Sleep(2 * time.Second)
-	desc := httpc.GetDesc()
-	ships := getShips()
-	board.Import(ships)
-	for {
-		time.Sleep(time.Second)
 
-		status := checkGameStatus()
+	desc, err := gameDesc()
+	if err != nil {
+		log.Println("Getting description failed: ", err)
+	}
+
+	ships, err := gameShips()
+	if err != nil {
+		log.Println("Failed to get ships after 3 tries: ", err, " exiting...")
+		return
+	}
+
+	board.Import(ships)
+
+	for {
+		status, err := gameStatus()
+		if err != nil {
+			log.Println("Failed to get status after 3 tries: ", err, " exiting...")
+			return
+		}
 		if status.GameStatus == "ended" {
 			fmt.Println("Game ended")
 			break
 		}
+
+		// Wait for your turn
+		for !status.ShouldFire && status.GameStatus != "ended" {
+			time.Sleep(time.Second)
+			status, err = gameStatus()
+		}
+		// Your turn
+		fireUpdate()
+
 		oppShotHandler(status, ships)
 		board.Display()
 		printInfo(desc, status)
-		status = checkGameStatus()
-		for !status.ShouldFire {
-			time.Sleep(time.Second)
-			status = checkGameStatus()
-		}
-		fireUpdate()
 	}
 }

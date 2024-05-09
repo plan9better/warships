@@ -24,13 +24,13 @@ type GameStatus struct {
 	ShouldFire     bool     `json:"should_fire"`
 }
 
-func (c *HttpClient) makeGetRequest(endpoint string) ([]byte, int) {
+func (c *HttpClient) makeRequest(endpoint string, v any, method string, payload io.Reader) error {
 	address := fmt.Sprintf("https://go-pjatk-server.fly.dev/api/%s", endpoint)
-	req, err := http.NewRequest("GET", address, nil)
+	req, err := http.NewRequest(method, address, payload)
 	if err != nil {
 		log.Printf("Error making a get request to %s\n", endpoint)
 		log.Printf("Error: %s\n", err)
-		return nil, 0
+		return err
 	}
 
 	req.Header.Add("X-Auth-Token", c.AuthToken)
@@ -38,7 +38,7 @@ func (c *HttpClient) makeGetRequest(endpoint string) ([]byte, int) {
 	if err != nil {
 		log.Printf("Error sending a get request to %s\n", endpoint)
 		log.Printf("Error: %s\n", err)
-		return nil, 0
+		return err
 	}
 
 	defer resp.Body.Close()
@@ -46,10 +46,17 @@ func (c *HttpClient) makeGetRequest(endpoint string) ([]byte, int) {
 	if err != nil {
 		log.Printf("Error reading response body from request to %s\n", endpoint)
 		log.Printf("Error: %s\n", err)
-		return nil, 0
+		return err
 	}
+	handleHTTPCodes(resp.StatusCode, body)
 
-	return body, resp.StatusCode
+	err = json.Unmarshal(body, &v)
+	if err != nil {
+		log.Printf("Error unmarshaling JSON response\n")
+		return err
+	}
+	handleHTTPCodes(resp.StatusCode, body)
+	return nil
 
 }
 
@@ -58,46 +65,23 @@ func handleHTTPCodes(code int, body []byte) {
 	switch code {
 	case 400:
 		log.Printf("Bad request\n")
+	case 404:
+		log.Printf("Not found")
+	case 505:
 	}
 	log.Println(string(body))
 }
 
-func (c *HttpClient) GetGameStatus() GameStatus {
-	body, ok := c.makeGetRequest("game")
-	if ok != 200 {
-		log.Printf("HTTP Error getting game status:\n")
-		handleHTTPCodes(ok, body)
-	}
-
+func (c *HttpClient) GetGameStatus() (GameStatus, error) {
 	var status GameStatus
-	err := json.Unmarshal(body, &status)
-	if err != nil {
-		log.Println("Error unmarshaling game status: ", err)
+	err := c.makeRequest("game", &status, "GET", nil)
+	tryCounter := 1
+	for err != nil && tryCounter < 5 {
+		log.Printf("Error getting game status: %s, retrying %d time\n", err, tryCounter)
+		return status, err
 	}
-	return status
 
-	// req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game", nil)
-	// if err != nil {
-	// 	log.Println("Error creating a request to check game status: ", err)
-	// }
-	// req.Header.Add("X-Auth-Token", c.AuthToken)
-
-	// resp, err := c.Client.Do(req)
-	// if err != nil {
-	// 	log.Println("Error sending request while checking game status", err)
-	// }
-
-	// defer resp.Body.Close()
-	// body, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	log.Println("Error reading body while checking game status: ", err)
-	// }
-	// var status GameStatus
-	// err = json.Unmarshal(body, &status)
-	// if err != nil {
-	// 	log.Println("Error unmarshaling game status: ", err)
-	// }
-	// urn status, resp.StatusCode
+	return status, nil
 }
 
 type GameConfig struct {
@@ -115,120 +99,83 @@ type Desc struct {
 	Opponent string `json:"opponent"`
 }
 
-func (c *HttpClient) GetDesc() Desc {
-	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/desc", nil)
-	if err != nil {
-		log.Println("Error making request to game/desc")
-	}
-
-	req.Header.Add("X-Auth-Token", c.AuthToken)
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		log.Println("Error sending request to game/desc")
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Error reading response body while getting /game/desc", err)
-	}
-	fmt.Println(string(body))
+func (c *HttpClient) GetDesc() (Desc, error) {
 	var desc Desc
-	err = json.Unmarshal(body, &desc)
+	err := c.makeRequest("game/desc", &desc, "GET", nil)
 	if err != nil {
-		log.Println("Error unmarshaling response body while getting /game/desc", err)
+		log.Println("Error getting description: ", err)
+		return desc, err
 	}
-	return desc
+	return desc, nil
 }
 
-func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, int) {
-
+func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, error) {
 	bm, err := json.Marshal(cfg)
 	if err != nil {
-		log.Fatal("Error marshaling", err)
+		log.Fatal("Error marshaling request for auth token", err)
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", "https://go-pjatk-server.fly.dev/api/game", bytes.NewReader(bm))
 	if err != nil {
-		log.Fatal("Error creating a request", err)
+		log.Println("Error creating a request", err)
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.Client.Do(req)
-	if err != nil {
-		log.Fatal("Error requesting /game", err)
+	tryCounter := 1
+	if err != nil && tryCounter < 5 {
+
+		// log.Fatal("Error requesting /game", err)
+		// return "", err
 	}
-	return resp.Header.Get("X-Auth-Token"), resp.StatusCode
+	return resp.Header.Get("X-Auth-Token"), nil
 
 }
 
-func (c *HttpClient) GetGameBoard() ([]string, int) {
-	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/board", nil)
-	if err != nil {
-		log.Println("Error creating request while getting game board", err)
-	}
-	req.Header.Add("X-Auth-Token", c.AuthToken)
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		log.Println("Error requesting game board ", err)
-	}
-
+func (c *HttpClient) GetGameBoard() ([]string, error) {
+	// var board []string
 	type board struct {
-		Brd []string `json:"board"`
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Error reading response body while getting game board ", err)
+		Board []string `json:"board"`
 	}
 	var brd board
-	err = json.Unmarshal(body, &brd)
+	err := c.makeRequest("game/board", &brd, "GET", nil)
 	if err != nil {
-		log.Println("Error unmarshaling response body while getting game board ", err)
+		log.Println("Error fetching game board")
+		return brd.Board, err
 	}
-
-	return brd.Brd, resp.StatusCode
+	return brd.Board, nil
 }
 
-func (c *HttpClient) Fire(toFire string) (string, int) {
+func (c *HttpClient) Fire(toFire string) (string, error) {
 	type coord struct {
 		Coord string `json:"coord"`
 	}
-
-	crd := &coord{
-		Coord: toFire,
-	}
+	var crd coord
+	crd.Coord = toFire
 
 	crdm, err := json.Marshal(crd)
 	if err != nil {
 		log.Println("Error marshaling fire coords")
 	}
 
-	req, err := http.NewRequest("POST", "https://go-pjatk-server.fly.dev/api/game/fire", bytes.NewReader(crdm))
-	if err != nil {
-		log.Println("Error creating request while firing", err)
-	}
-	req.Header.Add("X-Auth-Token", c.AuthToken)
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		log.Println("Error firing", err)
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Error reading response body while firing", err)
-	}
 	type result struct {
 		Result string `json:"result"`
 	}
 	var res result
-	err = json.Unmarshal(body, &res)
+	err = c.makeRequest("game/fire", &res, "POST", bytes.NewReader(crdm))
 	if err != nil {
-		log.Println("Error unmarshaling response while firing", err)
+		log.Printf("Error firing: %s\n", err)
+		return res.Result, err
 	}
+	return res.Result, nil
+}
 
-	return res.Result, resp.StatusCode
-
+func (c *HttpClient) Abandon() {
+	req, _ := http.NewRequest("DELETE", "https://go-pjatk-server.fly.dev/api/game/fire", nil)
+	req.Header.Add("X-Auth-Token", c.AuthToken)
+	resp, _ := c.Client.Do(req)
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Println(string(body))
 }
