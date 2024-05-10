@@ -84,6 +84,10 @@ func fire() (string, string, error) {
 	return isHit, toFire, err
 }
 
+func sinkShipGui() {
+
+}
+
 func fireUpdate() {
 
 	isHit, toFire, err := fire()
@@ -127,16 +131,6 @@ func oppShotHandler(status httpclient.GameStatus, ships []string) {
 	}
 }
 
-func gameDesc() (httpclient.Desc, error) {
-	desc, err := httpc.GetDesc()
-	tryCounter := 1
-	for err != nil && tryCounter < 3 {
-		time.Sleep(time.Second)
-		desc, err = httpc.GetDesc()
-	}
-	return desc, err
-}
-
 func gameShips() ([]string, error) {
 	ships, err := httpc.GetGameBoard()
 	tryCounter := 1
@@ -144,6 +138,7 @@ func gameShips() ([]string, error) {
 		log.Println("Error getting game board: ", err, " retrying...")
 		ships, err = httpc.GetGameBoard()
 		tryCounter++
+		time.Sleep(time.Second)
 	}
 	return ships, err
 }
@@ -166,11 +161,6 @@ func StartGame(httpcl *httpclient.HttpClient) {
 	auth()
 	fmt.Println("Game started")
 
-	desc, err := gameDesc()
-	if err != nil {
-		log.Println("Getting description failed: ", err)
-	}
-
 	ships, err := gameShips()
 	if err != nil {
 		log.Println("Failed to get ships after 3 tries: ", err, " exiting...")
@@ -180,6 +170,10 @@ func StartGame(httpcl *httpclient.HttpClient) {
 	board.Import(ships)
 
 	for {
+		desc, err := httpc.GetDesc()
+		if err != nil {
+			log.Println("Getting description failed: ", err)
+		}
 		status, err := gameStatus()
 		if err != nil {
 			log.Println("Failed to get status after 3 tries: ", err, " exiting...")
@@ -195,11 +189,11 @@ func StartGame(httpcl *httpclient.HttpClient) {
 			time.Sleep(time.Second)
 			status, err = gameStatus()
 		}
-		// Your turn
-		fireUpdate()
-
 		oppShotHandler(status, ships)
 		board.Display()
 		printInfo(desc, status)
+		// Your turn
+		fireUpdate()
+
 	}
 }

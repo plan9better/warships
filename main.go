@@ -20,7 +20,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go gameclient.StartGame(httpc)
 	<-sigs
-	fmt.Println("Abandoning game")
+	fmt.Println("\nAbandoning game")
 	httpc.Abandon()
 	fmt.Println("Game abandoned")
 }
