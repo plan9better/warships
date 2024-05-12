@@ -136,9 +136,9 @@ func gameShips() ([]string, error) {
 	tryCounter := 1
 	if err != nil && tryCounter < 3 {
 		log.Println("Error getting game board: ", err, " retrying...")
+		time.Sleep(time.Second)
 		ships, err = httpc.GetGameBoard()
 		tryCounter++
-		time.Sleep(time.Second)
 	}
 	return ships, err
 }
@@ -154,8 +154,14 @@ func gameStatus() (httpclient.GameStatus, error) {
 	return status, err
 }
 
+func mainMenu() {
+	fmt.Println("1. Start a game with default ships")
+	fmt.Println("2. Start a game with custom ships")
+}
+
 func StartGame(httpcl *httpclient.HttpClient) {
 	httpc = httpcl
+
 	createCfg()
 	board = gui.New(gui.NewConfig())
 	auth()
@@ -168,12 +174,12 @@ func StartGame(httpcl *httpclient.HttpClient) {
 	}
 
 	board.Import(ships)
+	desc, err := httpc.GetDesc()
+	if err != nil {
+		log.Println("Getting description failed: ", err)
+	}
 
 	for {
-		desc, err := httpc.GetDesc()
-		if err != nil {
-			log.Println("Getting description failed: ", err)
-		}
 		status, err := gameStatus()
 		if err != nil {
 			log.Println("Failed to get status after 3 tries: ", err, " exiting...")
@@ -188,6 +194,9 @@ func StartGame(httpcl *httpclient.HttpClient) {
 		for !status.ShouldFire && status.GameStatus != "ended" {
 			time.Sleep(time.Second)
 			status, err = gameStatus()
+			if err != nil {
+				log.Println("error checking turn", err)
+			}
 		}
 		oppShotHandler(status, ships)
 		board.Display()

@@ -42,6 +42,7 @@ func (c *HttpClient) makeRequest(endpoint string, v any, method string, payload 
 	var body []byte
 	isCritical := false
 	for !isCritical {
+		log.Println("Making a request to ", endpoint)
 		resp, err := c.Client.Do(req)
 		if err != nil {
 			log.Printf("Error sending a get request to %s\n", endpoint)
@@ -49,7 +50,7 @@ func (c *HttpClient) makeRequest(endpoint string, v any, method string, payload 
 			return err
 		}
 		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil {
 			log.Printf("Error reading response body from request to %s\n", endpoint)
 			log.Printf("Error: %s\n", err)
@@ -58,14 +59,16 @@ func (c *HttpClient) makeRequest(endpoint string, v any, method string, payload 
 		if resp.StatusCode != 200 {
 			isCritical = handleHTTPCodes(resp.StatusCode, body, tries, endpoint)
 			tries++
+		} else {
+			err = json.Unmarshal(body, &v)
+			if err != nil {
+				log.Printf("Error unmarshaling JSON response: %s\n", err)
+				return err
+			}
+			break
 		}
 	}
 
-	err = json.Unmarshal(body, &v)
-	if err != nil {
-		log.Printf("Error unmarshaling JSON response\n")
-		return err
-	}
 	return nil
 
 }
@@ -94,6 +97,7 @@ func handleHTTPCodes(code int, body []byte, tries int, endpoint string) bool {
 	// 	log.Println("tries: ", tries)
 	// 	isCritical = false
 	case 429:
+		// Too many requests
 		time.Sleep(5 * time.Second)
 		isCritical = false
 	default:
@@ -113,6 +117,7 @@ func (c *HttpClient) GetGameStatus() (GameStatus, error) {
 	tryCounter := 1
 	for err != nil && tryCounter < 5 {
 		log.Printf("Error getting game status: %s, retrying %d time\n", err, tryCounter)
+		err = c.makeRequest("game", &status, "GET", nil)
 		return status, err
 	}
 
@@ -135,6 +140,7 @@ type Desc struct {
 }
 
 func (c *HttpClient) GetDesc() (Desc, error) {
+	time.Sleep(3 * time.Second)
 	var desc Desc
 	tryCounter := 1
 	for desc.Opp_Desc == "" && tryCounter < 5 {
