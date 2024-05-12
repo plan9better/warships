@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func CheckValidCoords(coords string) bool {
@@ -39,7 +40,11 @@ func PromptString(info string, def string) string {
 	text, _ := reader.ReadBytes('\n')
 	if len(text) == 1 {
 		fmt.Printf("No %s provided, going with the default\n", info)
+		return def
 	}
+	str = string(text)
+	str = strings.TrimSuffix(str, "\n")
 
+	// log.Println("promtstring returning: ", str)
 	return str
 }

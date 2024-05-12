@@ -18,7 +18,7 @@ func main() {
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go gameclient.StartGame(httpc)
+	go gameclient.MainMenu(httpc)
 	<-sigs
 	fmt.Println("\nAbandoning game")
 	httpc.Abandon()

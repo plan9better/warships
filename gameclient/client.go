@@ -15,7 +15,6 @@ import (
 const DEFAULT_NICK = "Patryk"
 const DEFAULT_DESC = "Majtek"
 const DEFAULT_TARGET = ""
-const DEFAULT_WPBOT = "true"
 
 var reader *bufio.Reader = bufio.NewReader(os.Stdin)
 var cfg *httpclient.GameConfig
@@ -25,26 +24,26 @@ var httpc *httpclient.HttpClient
 func createCfg() {
 	nick := utils.PromptString("nick", DEFAULT_NICK)
 	desc := utils.PromptString("description", DEFAULT_DESC)
-	// target := utils.PromptString("target", DEFAULT_TARGET)
+	target := utils.PromptString("target (leave blank if you want to play agains wpbot)", DEFAULT_TARGET)
+	log.Println("target: ", target)
 
-	var wpbot string
-	for wpbot != "true" && wpbot != "false" {
-		wpbot = utils.PromptString("wpbot", DEFAULT_WPBOT)
-	}
-
-	var wpbotBool bool
-	if wpbot == "true" {
-		wpbotBool = true
+	if target == DEFAULT_TARGET {
+		cfg = &httpclient.GameConfig{
+			Nick:  nick,
+			Desc:  desc,
+			Wpbot: true,
+		}
 	} else {
-		wpbotBool = false
+		cfg = &httpclient.GameConfig{
+			Nick: nick,
+			Desc: desc,
+			// Target: target,
+			Wpbot: false,
+		}
 	}
+	fmt.Println("Final config: ")
+	fmt.Printf("Nick: %s\n Desc: %s\n Target: %s\n wpbot: %b\n", cfg.Nick, cfg.Desc, cfg.Target, cfg.Wpbot)
 
-	cfg = &httpclient.GameConfig{
-		Nick: nick,
-		Desc: desc,
-		// Target: target,
-		Wpbot: wpbotBool,
-	}
 }
 
 func auth() {
@@ -154,18 +153,34 @@ func gameStatus() (httpclient.GameStatus, error) {
 	return status, err
 }
 
-func mainMenu() {
-	fmt.Println("1. Start a game with default ships")
-	fmt.Println("2. Start a game with custom ships")
+// func mainMenu() {
+// 	fmt.Println("1. Start a game with default ships")
+// 	fmt.Println("2. Start a game with custom ships")
+// 	fmt.Println("3. Start a game with custom ships")
+// }
+
+func game() {
+
+	// if target == DEFAULT_TARGET {
+	// 	cfg = &httpclient.GameConfig{
+	// 		Nick:  nick,
+	// 		Desc:  desc,
+	// 		Wpbot: true,
+	// 	}
+	// } else {
+	// 	cfg = &httpclient.GameConfig{
+	// 		Nick: nick,
+	// 		Desc: desc,
+	// 		// Target: target,
+	// 		Wpbot: false,
+	// 	}
+
 }
 
 func StartGame(httpcl *httpclient.HttpClient) {
 	httpc = httpcl
 
-	createCfg()
 	board = gui.New(gui.NewConfig())
-	auth()
-	fmt.Println("Game started")
 
 	ships, err := gameShips()
 	if err != nil {

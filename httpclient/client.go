@@ -156,12 +156,27 @@ func (c *HttpClient) GetDesc() (Desc, error) {
 	return desc, nil
 }
 
+type Player struct {
+	GameStatus string `json:"game_status"`
+	Nick       string `json:"nick"`
+}
+
+func (c *HttpClient) GetLobby() []Player {
+	var players []Player
+	err := c.makeRequest("lobby", &players, "GET", nil)
+	if err != nil {
+		log.Println("Error requesting lobby")
+	}
+	return players
+}
+
 func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, error) {
 	bm, err := json.Marshal(cfg)
 	if err != nil {
 		log.Fatal("Error marshaling request for auth token", err)
 		return "", err
 	}
+	log.Println(string(bm))
 
 	req, err := http.NewRequest("POST", "https://go-pjatk-server.fly.dev/api/game", bytes.NewReader(bm))
 	if err != nil {
@@ -186,6 +201,29 @@ func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, error) {
 	}
 	return resp.Header.Get("X-Auth-Token"), nil
 
+}
+
+func (c *HttpClient) RefreshWaitSession() {
+	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/refresh", nil)
+	if err != nil {
+		log.Println("Error creating a request to refresh", err)
+	}
+	req.Header.Add("X-Auth-Token", c.AuthToken)
+
+	tries := 1
+	isCritical := false
+	var resp *http.Response
+	for !isCritical {
+		resp, err = c.Client.Do(req)
+		if err != nil {
+			log.Printf("Error sending request to refresh\n")
+		}
+		if resp.StatusCode != 200 {
+			isCritical = handleHTTPCodes(resp.StatusCode, nil, tries, "auth")
+		} else {
+			break
+		}
+	}
 }
 
 func (c *HttpClient) GetGameBoard() ([]string, error) {
