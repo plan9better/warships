@@ -42,7 +42,7 @@ func (c *HttpClient) makeRequest(endpoint string, v any, method string, payload 
 	var body []byte
 	isCritical := false
 	for !isCritical {
-		log.Println("Making a request to ", endpoint)
+		// log.Println("Making a request to ", endpoint)
 		resp, err := c.Client.Do(req)
 		if err != nil {
 			log.Printf("Error sending a get request to %s\n", endpoint)
@@ -207,21 +207,21 @@ func (c *HttpClient) RefreshWaitSession() {
 	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/refresh", nil)
 	if err != nil {
 		log.Println("Error creating a request to refresh", err)
-	}
-	req.Header.Add("X-Auth-Token", c.AuthToken)
+		req.Header.Add("X-Auth-Token", c.AuthToken)
 
-	tries := 1
-	isCritical := false
-	var resp *http.Response
-	for !isCritical {
-		resp, err = c.Client.Do(req)
-		if err != nil {
-			log.Printf("Error sending request to refresh\n")
-		}
-		if resp.StatusCode != 200 {
-			isCritical = handleHTTPCodes(resp.StatusCode, nil, tries, "auth")
-		} else {
-			break
+		tries := 1
+		isCritical := false
+		var resp *http.Response
+		for !isCritical {
+			resp, err = c.Client.Do(req)
+			if err != nil {
+				log.Printf("Error sending request to refresh\n")
+			}
+			if resp.StatusCode != 200 {
+				isCritical = handleHTTPCodes(resp.StatusCode, nil, tries, "auth")
+			} else {
+				break
+			}
 		}
 	}
 }
@@ -266,4 +266,5 @@ func (c *HttpClient) Fire(toFire string) (string, error) {
 func (c *HttpClient) Abandon() {
 	req, _ := http.NewRequest("DELETE", "https://go-pjatk-server.fly.dev/api/game/fire", nil)
 	req.Header.Add("X-Auth-Token", c.AuthToken)
+	c.Client.Do(req)
 }

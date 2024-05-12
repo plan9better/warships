@@ -27,8 +27,6 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 	httpc = httpcl
 	nick := utils.PromptString("nick", DEFAULT_NICK)
 	desc := utils.PromptString("description", DEFAULT_DESC)
-	// target := utils.PromptString("target (leave blank if you want to play agains wpbot)", DEFAULT_TARGET)
-	// log.Println("target: ", target)
 
 	var cfg httpclient.GameConfig
 	cfg.Nick = nick
