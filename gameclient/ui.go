@@ -47,6 +47,7 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 			reader := bufio.NewReader(os.Stdin)
 			text, _ := reader.ReadBytes('\n')
 			choice = strings.TrimSuffix(string(text), "\n")
+
 			switch choice {
 			case "1":
 				printLobby()

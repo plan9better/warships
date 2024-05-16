@@ -36,6 +36,7 @@ func fire() (string, string, error) {
 	}
 
 	toFire = toFire[:len(toFire)-1]
+
 	isHit, err := httpc.Fire(toFire)
 	if err != nil {
 		log.Println("Error firing")
@@ -127,14 +128,20 @@ func strToCoord(str string) Coord {
 func handlePlayerShot() {
 	effect, coordStr := fireUpdate()
 	coord := strToCoord(coordStr)
+	var v Coord
 
-	if effect == "sunk" {
+	tries := 0
+	for effect == "sunk" && tries < 5 {
 		adj := FindAdjacent(coord)
-		for _, v := range adj {
-			if boardcoord[v] == "hit" {
+		for _, v = range adj {
+			if boardcoord[v] == "hit" || boardcoord[v] == "sunk" {
 				boardcoord[v] = "sunk"
+				coord = v
+			} else {
+				boardcoord[v] = "empty"
 			}
 		}
+		tries++
 	}
 	displayBoard()
 }
@@ -153,6 +160,8 @@ func displayBoard() {
 
 			if boardcoord[crd] == "sunk" {
 				board.Set(gui.Right, coordToStr(crd), gui.Ship)
+			} else if boardcoord[crd] == "empty" {
+				board.Set(gui.Right, coordToStr(crd), gui.Miss)
 			}
 		}
 	}
