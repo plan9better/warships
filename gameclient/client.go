@@ -5,63 +5,24 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 	"warships/httpclient"
 	"warships/utils"
 
-	gui "github.com/grupawp/warships-lightgui/v2"
+	gui "github.com/rrekaf/warships-lightgui"
 )
+
+var boardcoord map[Coord]string
 
 const DEFAULT_NICK = "Patryk"
 const DEFAULT_DESC = "Majtek"
 const DEFAULT_TARGET = ""
 
 var reader *bufio.Reader = bufio.NewReader(os.Stdin)
-var cfg *httpclient.GameConfig
+
 var board *gui.Board
 var httpc *httpclient.HttpClient
-
-func createCfg() {
-	nick := utils.PromptString("nick", DEFAULT_NICK)
-	desc := utils.PromptString("description", DEFAULT_DESC)
-	target := utils.PromptString("target (leave blank if you want to play agains wpbot)", DEFAULT_TARGET)
-	log.Println("target: ", target)
-
-	if target == DEFAULT_TARGET {
-		cfg = &httpclient.GameConfig{
-			Nick:  nick,
-			Desc:  desc,
-			Wpbot: true,
-		}
-	} else {
-		cfg = &httpclient.GameConfig{
-			Nick: nick,
-			Desc: desc,
-			// Target: target,
-			Wpbot: false,
-		}
-	}
-	fmt.Println("Final config: ")
-	fmt.Printf("Nick: %s\n Desc: %s\n Target: %s\n wpbot: %b\n", cfg.Nick, cfg.Desc, cfg.Target, cfg.Wpbot)
-
-}
-
-func auth() {
-	auth, err := httpc.GetAuthToken(cfg)
-	tryCounter := 1
-
-	if err != nil && tryCounter < 3 {
-		log.Println("Invalid response auth token: ", err)
-		log.Println("Retrying...")
-		auth, err = httpc.GetAuthToken(cfg)
-		tryCounter++
-	}
-	if err != nil {
-		log.Println("Failed to authenticate... exiting")
-		return
-	}
-	httpc.AuthToken = auth
-}
 
 func fire() (string, string, error) {
 	valid := false
@@ -83,12 +44,7 @@ func fire() (string, string, error) {
 	return isHit, toFire, err
 }
 
-func sinkShipGui() {
-
-}
-
-func fireUpdate() {
-
+func fireUpdate() (string, string) {
 	isHit, toFire, err := fire()
 	tryCounter := 1
 	for err != nil && tryCounter < 3 {
@@ -97,7 +53,7 @@ func fireUpdate() {
 	}
 	if err != nil {
 		log.Println("Failed to fire after 3 tries: ", err)
-		return
+		return "", ""
 	}
 	switch isHit {
 	case "hit":
@@ -107,6 +63,11 @@ func fireUpdate() {
 	case "sunk":
 		board.Set(gui.Right, toFire, gui.Ship)
 	}
+
+	// add to boardCoord struct
+	boardcoord[strToCoord(toFire)] = isHit
+
+	return isHit, toFire
 }
 
 func printInfo(desc httpclient.Desc, status httpclient.GameStatus) {
@@ -152,33 +113,55 @@ func gameStatus() (httpclient.GameStatus, error) {
 	}
 	return status, err
 }
+func strToCoord(str string) Coord {
+	c := []byte(str)
+	var coord Coord
+	coord.X = int(c[0])
+	if len(c) == 3 {
+		coord.Y = 10
+	} else {
+		coord.Y = int(str[1] - '0')
+	}
+	return coord
+}
+func handlePlayerShot() {
+	effect, coordStr := fireUpdate()
+	coord := strToCoord(coordStr)
 
-// func mainMenu() {
-// 	fmt.Println("1. Start a game with default ships")
-// 	fmt.Println("2. Start a game with custom ships")
-// 	fmt.Println("3. Start a game with custom ships")
-// }
+	if effect == "sunk" {
+		adj := FindAdjacent(coord)
+		for _, v := range adj {
+			if boardcoord[v] == "hit" {
+				boardcoord[v] = "sunk"
+			}
+		}
+	}
+	displayBoard()
+}
 
-func game() {
+func coordToStr(coord Coord) string {
+	res := string(rune(coord.X))
+	res += strconv.Itoa(coord.Y)
+	return res
+}
 
-	// if target == DEFAULT_TARGET {
-	// 	cfg = &httpclient.GameConfig{
-	// 		Nick:  nick,
-	// 		Desc:  desc,
-	// 		Wpbot: true,
-	// 	}
-	// } else {
-	// 	cfg = &httpclient.GameConfig{
-	// 		Nick: nick,
-	// 		Desc: desc,
-	// 		// Target: target,
-	// 		Wpbot: false,
-	// 	}
+func displayBoard() {
+	var crd Coord
+	for i := 'A'; i <= 'J'; i++ {
+		for j := 1; j <= 10; j++ {
+			crd = Coord{X: int(i), Y: j}
 
+			if boardcoord[crd] == "sunk" {
+				board.Set(gui.Right, coordToStr(crd), gui.Ship)
+			}
+		}
+	}
+	board.Display()
 }
 
 func StartGame(httpcl *httpclient.HttpClient) {
 	httpc = httpcl
+	boardcoord = make(map[Coord]string)
 
 	board = gui.New(gui.NewConfig())
 
@@ -214,10 +197,20 @@ func StartGame(httpcl *httpclient.HttpClient) {
 			}
 		}
 		oppShotHandler(status, ships)
-		board.Display()
+		displayBoard()
+
 		printInfo(desc, status)
 		// Your turn
-		fireUpdate()
+		handlePlayerShot()
+		// for i := 'A'; i <= 'J'; i++ {
+		// 	for j := 1; j <= 10; j++ {
+		// 		if boardcoord[Coord{X: int(i), Y: j}] == "sunk" {
+		// 			fmt.Println("i: ", i, "j: ", j, boardcoord[Coord{X: int(i), Y: j}])
+		// 		}
+		// 	}
+		// }
+		displayBoard()
+		printInfo(desc, status)
 
 	}
 }

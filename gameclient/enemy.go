@@ -1,6 +1,7 @@
 package gameclient
 
 import (
+	"log"
 	"math"
 )
 
@@ -42,6 +43,62 @@ func IsAdjacent(cord1 Coord, cord2 Coord) bool {
 	return false
 }
 
+func whichEdge(coord Coord) string {
+	if coord.X == 'A' {
+		return "l"
+	}
+	if coord.X == 'J' {
+		return "r"
+	}
+	if coord.Y == 10 {
+		return "t"
+	}
+	if coord.Y == 0 {
+		return "b"
+	}
+	return ""
+}
+
+func whichCorner(coord Coord) string {
+	// bottom left
+	if coord.X == 'A' && coord.Y == 1 {
+		return "bl"
+	}
+	// top left
+	if coord.X == 'A' && coord.Y == 10 {
+		return "tl"
+	}
+	// top right
+	if coord.X == 'J' && coord.Y == 10 {
+		return "tr"
+	}
+	// bottom right
+	if coord.X == 'J' && coord.Y == 1 {
+		return "br"
+	}
+	return ""
+}
+
+func isInCorner(coord Coord) bool {
+	// bottom left
+	if coord.X == 'A' && coord.Y == 1 {
+		return true
+	}
+	// top left
+	if coord.X == 'A' && coord.Y == 10 {
+		return true
+	}
+	// top right
+	if coord.X == 'J' && coord.Y == 10 {
+		return true
+	}
+	// bottom right
+	if coord.X == 'J' && coord.Y == 1 {
+		return true
+	}
+	return false
+}
+
 func isOnEdge(coord Coord) bool {
 	if coord.Y == 1 || coord.Y == 10 || coord.X == 'A' || coord.Y == 'J' {
 		return true
@@ -50,20 +107,79 @@ func isOnEdge(coord Coord) bool {
 }
 
 func FindAdjacent(coord Coord) []Coord {
+
 	var res []Coord
-	if coord.X == 'A' {
-		// For A1
 
-		// B1
-		res = append(res, Coord{coord.X + 1, coord.Y})
+	if isInCorner(coord) {
+		switch whichCorner(coord) {
+		case "tl":
+			res = append(res, Coord{X: 'A', Y: 9})
+			res = append(res, Coord{X: 'B', Y: 9})
+			res = append(res, Coord{X: 'B', Y: 10})
+			return res
+		case "tr":
+			res = append(res, Coord{X: 'J', Y: 9})
+			res = append(res, Coord{X: 'I', Y: 9})
+			res = append(res, Coord{X: 'I', Y: 10})
+			return res
+		case "bl":
+			res = append(res, Coord{X: 'A', Y: 2})
+			res = append(res, Coord{X: 'B', Y: 2})
+			res = append(res, Coord{X: 'B', Y: 1})
+			return res
+		case "br":
+			res = append(res, Coord{X: 'J', Y: 2})
+			res = append(res, Coord{X: 'I', Y: 2})
+			res = append(res, Coord{X: 'I', Y: 1})
+			return res
 
-		// B2
-		res = append(res, Coord{coord.X + 1, coord.Y + 1})
-
-		// A2
-		res = append(res, Coord{coord.X, coord.Y + 1})
+		default:
+			log.Println("func FindAdjacent if isInCorner hit default case in switch?", whichCorner(coord))
+		}
 	}
-	return nil
+
+	if isOnEdge(coord) {
+		switch whichEdge(coord) {
+		case "t":
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			return res
+		case "b":
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			return res
+		case "l":
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y - 1})
+			return res
+		case "r":
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y - 1})
+			return res
+		}
+	}
+
+	res = append(res, Coord{X: coord.X + 1, Y: coord.Y + 1})
+	res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+	res = append(res, Coord{X: coord.X + 1, Y: coord.Y - 1})
+	res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+	res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+	res = append(res, Coord{X: coord.X - 1, Y: coord.Y + 1})
+	res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+	res = append(res, Coord{X: coord.X - 1, Y: coord.Y - 1})
+	return res
 }
 
 func (p *Player) LogShot(shot Coord, shotEffect int) {

@@ -16,9 +16,12 @@ func main() {
 	httpc := &httpclient.HttpClient{
 		Client: &http.Client{Timeout: time.Second * 20},
 	}
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	go gameclient.MainMenu(httpc)
+
 	<-sigs
 	fmt.Println("\nAbandoning game")
 	httpc.Abandon()
