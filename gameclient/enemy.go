@@ -1,13 +1,40 @@
 package gameclient
 
 import (
+	"fmt"
 	"log"
 	"math"
+	"strconv"
+	"strings"
 )
 
 type Coord struct {
 	X int
 	Y int
+}
+
+func (c Coord) MarshalText() ([]byte, error) {
+	return []byte(fmt.Sprintf("%d,%d", c.X, c.Y)), nil
+}
+
+func (c *Coord) UnmarshalText(text []byte) error {
+	textStr := string(text)
+
+	txt := strings.Split(textStr, ",")
+
+	x, err := strconv.Atoi(txt[0])
+	if err != nil {
+		panic(err)
+	}
+
+	y, err := strconv.Atoi(txt[1])
+	if err != nil {
+		panic(err)
+	}
+	c.X = x
+	c.Y = y
+
+	return nil
 }
 
 type Ship []Coord
@@ -19,11 +46,11 @@ type Player struct {
 	HasLastMove    bool
 }
 
-const (
-	hit  = 0
-	miss = 1
-	sunk = 2
-)
+// const (
+// 	hit  = 0
+// 	miss = 1
+// 	sunk = 2
+// )
 
 func IsSame(cord1 Coord, cord2 Coord) bool {
 	if cord1.X == cord1.Y && cord2.X == cord2.Y {

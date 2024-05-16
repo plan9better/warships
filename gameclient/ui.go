@@ -34,6 +34,18 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 
 	choice := ""
 	exit := false
+	bot := true
+	for !exit {
+		choice = utils.PromptString("should a bot play for you", "true")
+		if choice == "true" {
+			bot = true
+			exit = true
+		} else if choice == "false" {
+			bot = false
+			exit = true
+		}
+	}
+	exit = false
 	for !exit {
 		choice = utils.PromptString("human / bot", "bot")
 		if choice == "human" || choice == "bot" {
@@ -72,7 +84,7 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 					fmt.Println(status.GameStatus)
 					time.Sleep(4 * time.Second)
 				}
-				StartGame(httpc)
+				StartGame(httpc, bot)
 			case "3":
 				targetExists := false
 				var target string
@@ -101,7 +113,7 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 				}
 				httpc.AuthToken = token
 
-				StartGame(httpc)
+				StartGame(httpc, bot)
 			}
 		}
 	} else {
@@ -112,6 +124,6 @@ func MainMenu(httpcl *httpclient.HttpClient) {
 			log.Println("Error getting auth token")
 		}
 		httpc.AuthToken = token
-		StartGame(httpc)
+		StartGame(httpc, bot)
 	}
 }

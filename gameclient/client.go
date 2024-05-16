@@ -2,8 +2,11 @@ package gameclient
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"time"
@@ -14,6 +17,7 @@ import (
 )
 
 var boardcoord map[Coord]string
+var bot bool
 
 const DEFAULT_NICK = "Patryk"
 const DEFAULT_DESC = "Majtek"
@@ -25,17 +29,38 @@ var board *gui.Board
 var httpc *httpclient.HttpClient
 
 func fire() (string, string, error) {
-	valid := false
 	var toFire string
+	if bot {
 
-	for !valid {
-		fmt.Printf("Fire at: ")
-		text, _ := reader.ReadBytes('\n')
-		toFire = string(text)
-		valid = utils.CheckValidCoords(toFire)
+		roll := true
+		var toF []byte
+		for roll {
+			toF = []byte{'A', '1'}
+
+			r1 := rand.IntN(10)
+			r2 := rand.IntN(10)
+			toF[0] += byte(r1)
+			toF[1] += byte(r2)
+			if boardcoord[strToCoord(string(toF))] == "" {
+				roll = false
+			}
+		}
+
+		toFire = string(toF)
+	} else {
+		time.Sleep(1 * time.Second)
+		valid := false
+
+		for !valid {
+			fmt.Printf("Fire at: ")
+			text, _ := reader.ReadBytes('\n')
+			toFire = string(text)
+			valid = utils.CheckValidCoords(toFire)
+		}
+
+		toFire = toFire[:len(toFire)-1]
+
 	}
-
-	toFire = toFire[:len(toFire)-1]
 
 	isHit, err := httpc.Fire(toFire)
 	if err != nil {
@@ -138,7 +163,7 @@ func handlePlayerShot() {
 				boardcoord[v] = "sunk"
 				coord = v
 			} else {
-				boardcoord[v] = "empty"
+				boardcoord[v] = "miss"
 			}
 		}
 		tries++
@@ -160,7 +185,7 @@ func displayBoard() {
 
 			if boardcoord[crd] == "sunk" {
 				board.Set(gui.Right, coordToStr(crd), gui.Ship)
-			} else if boardcoord[crd] == "empty" {
+			} else if boardcoord[crd] == "miss" {
 				board.Set(gui.Right, coordToStr(crd), gui.Miss)
 			}
 		}
@@ -168,8 +193,9 @@ func displayBoard() {
 	board.Display()
 }
 
-func StartGame(httpcl *httpclient.HttpClient) {
+func StartGame(httpcl *httpclient.HttpClient, b bool) {
 	httpc = httpcl
+	bot = b
 	boardcoord = make(map[Coord]string)
 
 	board = gui.New(gui.NewConfig())
@@ -180,10 +206,20 @@ func StartGame(httpcl *httpclient.HttpClient) {
 		return
 	}
 
+	// TODO: add option to play continously
+
 	board.Import(ships)
 	desc, err := httpc.GetDesc()
 	if err != nil {
 		log.Println("Getting description failed: ", err)
+	}
+	type gameJson struct {
+		Board map[Coord]string `json:"board"`
+		Id    int              `json:"ID"`
+	}
+
+	type gamesJson struct {
+		Games []gameJson `json:"games"`
 	}
 
 	for {
@@ -192,33 +228,65 @@ func StartGame(httpcl *httpclient.HttpClient) {
 			log.Println("Failed to get status after 3 tries: ", err, " exiting...")
 			return
 		}
+
 		if status.GameStatus == "ended" {
 			fmt.Println("Game ended")
+
+			///////
+			if bot {
+
+				jsonFile, err := os.Open("log/games.json")
+				if err != nil {
+					fmt.Println(err)
+				}
+				jsonBytes, err := io.ReadAll(jsonFile)
+				if err != nil {
+					log.Println("error reading")
+					log.Println(err)
+				}
+
+				var games gamesJson
+				json.Unmarshal(jsonBytes, &games)
+				jsonFile.Close()
+
+				game := gameJson{Board: boardcoord}
+				game.Id = games.Games[len(games.Games)-1].Id + 1
+				// game.Id = 0
+				games.Games = append(games.Games, game)
+
+				jsonBytes, err = json.Marshal(games)
+				if err != nil {
+					log.Println("error marshaling")
+					log.Println(err)
+				}
+
+				// fmt.Printf("%+v", games)
+				err = os.WriteFile("log/games.json", jsonBytes, 0644)
+				if err != nil {
+					log.Println(err)
+				}
+				////////
+			}
+
 			break
 		}
 
 		// Wait for your turn
 		for !status.ShouldFire && status.GameStatus != "ended" {
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 1)
 			status, err = gameStatus()
 			if err != nil {
 				log.Println("error checking turn", err)
 			}
 		}
 		oppShotHandler(status, ships)
-		displayBoard()
+		// displayBoard()
 
 		printInfo(desc, status)
 		// Your turn
 		handlePlayerShot()
-		// for i := 'A'; i <= 'J'; i++ {
-		// 	for j := 1; j <= 10; j++ {
-		// 		if boardcoord[Coord{X: int(i), Y: j}] == "sunk" {
-		// 			fmt.Println("i: ", i, "j: ", j, boardcoord[Coord{X: int(i), Y: j}])
-		// 		}
-		// 	}
-		// }
-		displayBoard()
+
+		// displayBoard()
 		printInfo(desc, status)
 
 	}
