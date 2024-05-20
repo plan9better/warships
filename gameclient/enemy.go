@@ -13,6 +13,10 @@ type Coord struct {
 	Y int
 }
 
+func (c Coord) toString() string {
+	return fmt.Sprintf("X: %d, Y: %d", c.X, c.Y)
+}
+
 func (c Coord) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("%d,%d", c.X, c.Y)), nil
 }
@@ -131,6 +135,64 @@ func isOnEdge(coord Coord) bool {
 		return true
 	}
 	return false
+}
+
+func FindToShoot(coord Coord) []Coord {
+	var res []Coord
+	if isInCorner(coord) {
+		switch whichCorner(coord) {
+		case "tl":
+			res = append(res, Coord{X: 'A', Y: 9})
+			res = append(res, Coord{X: 'B', Y: 10})
+			return res
+		case "tr":
+			res = append(res, Coord{X: 'J', Y: 9})
+			res = append(res, Coord{X: 'I', Y: 10})
+			return res
+		case "bl":
+			res = append(res, Coord{X: 'A', Y: 2})
+			res = append(res, Coord{X: 'B', Y: 1})
+			return res
+		case "br":
+			res = append(res, Coord{X: 'J', Y: 2})
+			res = append(res, Coord{X: 'I', Y: 1})
+			return res
+
+		default:
+			log.Println("func FindAdjacent if isInCorner hit default case in switch?", whichCorner(coord))
+		}
+	}
+
+	if isOnEdge(coord) {
+		switch whichEdge(coord) {
+		case "t":
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			return res
+		case "b":
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			return res
+		case "l":
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+			return res
+		case "r":
+			res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+			res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+			res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+			return res
+		}
+	}
+
+	res = append(res, Coord{X: coord.X + 1, Y: coord.Y})
+	res = append(res, Coord{X: coord.X, Y: coord.Y + 1})
+	res = append(res, Coord{X: coord.X, Y: coord.Y - 1})
+	res = append(res, Coord{X: coord.X - 1, Y: coord.Y})
+	return res
 }
 
 func FindAdjacent(coord Coord) []Coord {

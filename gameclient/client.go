@@ -28,10 +28,33 @@ var reader *bufio.Reader = bufio.NewReader(os.Stdin)
 var board *gui.Board
 var httpc *httpclient.HttpClient
 
+var botPossibleShots []Coord
+
 func fire() (string, string, error) {
 	var toFire string
-	if bot {
+	var isHit string
 
+	// Human choses shot
+	if !bot {
+		time.Sleep(1 * time.Second)
+		valid := false
+
+		for !valid {
+			fmt.Printf("Fire at: ")
+			text, _ := reader.ReadBytes('\n')
+			toFire = string(text)
+			valid = utils.CheckValidCoords(toFire)
+		}
+
+		toFire = toFire[:len(toFire)-1]
+		isHit, _ := httpc.Fire(toFire)
+		return isHit, toFire, nil
+
+	}
+
+	// Bot choses shot
+	time.Sleep(time.Second / 2)
+	if len(botPossibleShots) == 0 {
 		roll := true
 		var toF []byte
 		for roll {
@@ -47,31 +70,42 @@ func fire() (string, string, error) {
 		}
 
 		toFire = string(toF)
-	} else {
-		time.Sleep(1 * time.Second)
-		valid := false
+		isHit, _ = httpc.Fire(toFire)
 
-		for !valid {
-			fmt.Printf("Fire at: ")
-			text, _ := reader.ReadBytes('\n')
-			toFire = string(text)
-			valid = utils.CheckValidCoords(toFire)
+		if isHit == "hit" {
+			botPossibleShots = FindToShoot(strToCoord(toFire))
 		}
 
-		toFire = toFire[:len(toFire)-1]
-
+	} else {
+		toFire = coordToStr(botPossibleShots[0])
+		isHit, _ = httpc.Fire(toFire)
+		fmt.Println("isHit", isHit)
+		time.Sleep(2 * time.Second)
+		// if err != nil {
+		// 	log.Println("Error firing")
+		// 	time.Sleep(5 * time.Second)
+		// 	return "", toFire, err
+		// }
+		if isHit == "miss" {
+			botPossibleShots = append(botPossibleShots[:0], botPossibleShots[1:]...)
+		}
+		if isHit == "sunk" {
+			botPossibleShots = []Coord{}
+		}
+		if isHit == "hit" {
+			// remove the hit and handle the rest
+			botPossibleShots = append(botPossibleShots[:0], botPossibleShots[1:]...)
+		}
 	}
-
-	isHit, err := httpc.Fire(toFire)
-	if err != nil {
-		log.Println("Error firing")
-		return "", toFire, err
-	}
-	return isHit, toFire, err
+	fmt.Println(isHit, toFire)
+	time.Sleep(2 * time.Second)
+	return isHit, toFire, nil
 }
 
 func fireUpdate() (string, string) {
 	isHit, toFire, err := fire()
+	fmt.Println("fireUpdate", isHit, toFire)
+	time.Sleep(3 * time.Second)
 	tryCounter := 1
 	for err != nil && tryCounter < 3 {
 		isHit, toFire, err = fire()
@@ -85,7 +119,11 @@ func fireUpdate() (string, string) {
 	case "hit":
 		board.Set(gui.Right, toFire, gui.Hit)
 	case "miss":
-		board.Set(gui.Right, toFire, gui.Miss)
+		if boardcoord[strToCoord(toFire)] == "hit" {
+			break
+		} else {
+			board.Set(gui.Right, toFire, gui.Miss)
+		}
 	case "sunk":
 		board.Set(gui.Right, toFire, gui.Ship)
 	}

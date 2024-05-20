@@ -176,7 +176,6 @@ func (c *HttpClient) GetAuthToken(cfg *GameConfig) (string, error) {
 		log.Fatal("Error marshaling request for auth token", err)
 		return "", err
 	}
-	log.Println(string(bm))
 
 	req, err := http.NewRequest("POST", "https://go-pjatk-server.fly.dev/api/game", bytes.NewReader(bm))
 	if err != nil {
@@ -225,7 +224,7 @@ func (c *HttpClient) RefreshWaitSession() {
 	}
 }
 
-func (c *HttpClient) GetGameBoard() ([]string, error) {
+func (c *HttpClient) GetGameBoard() []string {
 	type board struct {
 		Board []string `json:"board"`
 	}
@@ -233,9 +232,9 @@ func (c *HttpClient) GetGameBoard() ([]string, error) {
 	err := c.makeRequest("game/board", &brd, "GET", nil)
 	if err != nil {
 		log.Println("Error fetching game board")
-		return brd.Board, err
+		return brd.Board
 	}
-	return brd.Board, nil
+	return brd.Board
 }
 
 func (c *HttpClient) Fire(toFire string) (string, error) {
