@@ -155,16 +155,9 @@ func oppShotHandler(status httpclient.GameStatus, ships []string) {
 	}
 }
 
-func gameShips() ([]string, error) {
-	ships, err := httpc.GetGameBoard()
-	tryCounter := 1
-	if err != nil && tryCounter < 3 {
-		log.Println("Error getting game board: ", err, " retrying...")
-		time.Sleep(time.Second)
-		ships, err = httpc.GetGameBoard()
-		tryCounter++
-	}
-	return ships, err
+func gameShips() []string {
+	ships := httpc.GetGameBoard()
+	return ships
 }
 
 func gameStatus() (httpclient.GameStatus, error) {
@@ -238,11 +231,7 @@ func StartGame(httpcl *httpclient.HttpClient, b bool) {
 
 	board = gui.New(gui.NewConfig())
 
-	ships, err := gameShips()
-	if err != nil {
-		log.Println("Failed to get ships after 3 tries: ", err, " exiting...")
-		return
-	}
+	ships := gameShips()
 
 	// TODO: add option to play continously
 
